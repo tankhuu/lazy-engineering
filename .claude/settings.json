@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "TF_IN_AUTOMATION": "1",
+    "TF_INPUT": "0",
+    "CHECKPOINT_DISABLE": "1",
+    "TG_NON_INTERACTIVE": "true"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(terraform fmt:*)",
+      "Bash(terraform validate:*)",
+      "Bash(terraform init:*)",
+      "Bash(terraform plan:*)",
+      "Bash(terraform show:*)",
+      "Bash(terraform output:*)",
+      "Bash(terraform test:*)",
+      "Bash(terraform providers:*)",
+      "Bash(terraform version)",
+      "Bash(terraform -chdir=*)",
+      "Bash(terragrunt hcl:*)",
+      "Bash(terragrunt render:*)",
+      "Bash(terragrunt dag:*)",
+      "Bash(terragrunt find:*)",
+      "Bash(terragrunt list:*)",
+      "Bash(terragrunt output:*)",
+      "Bash(terragrunt --version)",
+      "Bash(terragrunt run --all plan:*)",
+      "Bash(terragrunt run --all validate:*)",
+      "Bash(terragrunt run plan:*)",
+      "Bash(terragrunt run validate:*)",
+      "Bash(terragrunt run -- plan:*)",
+      "Bash(terragrunt run -- validate:*)",
+      "Bash(terragrunt run -- show:*)",
+      "Bash(python3 infra/deployment/tests/render_check.py:*)",
+      "Bash(python3 .claude/hooks-platform/test_guard_bash.py)",
+      "Bash(tflint:*)",
+      "Bash(checkov:*)",
+      "Bash(trivy config:*)",
+      "Bash(terraform-docs:*)",
+      "Bash(pre-commit run:*)",
+      "Bash(make fmt:*)",
+      "Bash(make lint:*)",
+      "Bash(make validate:*)",
+      "Bash(make test:*)",
+      "Bash(make docs:*)",
+      "Bash(make plan:*)",
+      "Bash(make graph:*)",
+      "Bash(make drift:*)",
+      "Bash(make output:*)",
+      "Bash(az account show:*)",
+      "Bash(az account list:*)",
+      "Bash(az group show:*)",
+      "Bash(az group list:*)",
+      "Bash(az resource show:*)",
+      "Bash(az resource list:*)",
+      "Bash(az aks show:*)",
+      "Bash(az aks list:*)",
+      "Bash(az aks get-upgrades:*)",
+      "Bash(az aks get-versions:*)",
+      "Bash(az aks nodepool list:*)",
+      "Bash(az aks nodepool show:*)",
+      "Bash(az databricks workspace show:*)",
+      "Bash(az databricks workspace list:*)",
+      "Bash(az network vnet show:*)",
+      "Bash(az network vnet list:*)",
+      "Bash(az network vnet subnet list:*)",
+      "Bash(az network nsg show:*)",
+      "Bash(az network private-endpoint list:*)",
+      "Bash(az policy assignment list:*)",
+      "Bash(az policy assignment show:*)",
+      "Bash(az role assignment list:*)",
+      "Bash(az vm list-usage:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl top:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl events:*)",
+      "Bash(kubectl auth can-i:*)",
+      "Bash(kubectl version:*)",
+      "Bash(databricks current-user me:*)",
+      "Bash(databricks clusters list:*)",
+      "Bash(databricks cluster-policies list:*)",
+      "Bash(databricks metastores current:*)",
+      "Bash(databricks catalogs list:*)",
+      "Bash(databricks warehouses list:*)",
+      "Bash(jq:*)",
+      "mcp__terraform",
+      "mcp__context7"
+    ],
+    "ask": [
+      "Bash(az aks get-credentials:*)",
+      "Bash(kubelogin:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(terraform import:*)",
+      "Bash(terraform state rm:*)",
+      "Bash(terraform state mv:*)",
+      "Bash(terraform state push:*)",
+      "Bash(terraform force-unlock:*)",
+      "Bash(terragrunt apply:*)",
+      "Bash(terragrunt destroy:*)",
+      "Bash(terragrunt import:*)",
+      "Bash(terragrunt force-unlock:*)",
+      "Bash(terragrunt state:*)",
+      "Bash(terragrunt run --all apply:*)",
+      "Bash(terragrunt run --all destroy:*)",
+      "Bash(terragrunt run apply:*)",
+      "Bash(terragrunt run destroy:*)",
+      "Bash(terragrunt run -- apply:*)",
+      "Bash(terragrunt run -- destroy:*)",
+      "Bash(terragrunt run-all:*)",
+      "Bash(terragrunt backend:*)",
+      "Bash(az keyvault secret show:*)",
+      "Read(**/*.tfstate)",
+      "Read(**/*.tfstate.*)",
+      "Read(**/*.tfplan)",
+      "Read(**/.terraform/**)",
+      "Read(**/.terragrunt-cache/**)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.pfx)",
+      "Read(~/.azure/**)",
+      "Read(~/.kube/config)",
+      "Read(~/.databrickscfg)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks-platform/guard-bash.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks-platform/post-edit-tf.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": ["terraform", "azure", "kubernetes", "context7"],
+  "includeCoAuthoredBy": true
+}

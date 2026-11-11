@@ -1,0 +1,248 @@
+name: terragrunt
+
+# Layout: infra/deployment/<env>/<unit>/terragrunt.hcl (backbase-rnd/ri-iac ADR-005), one state per unit.
+# PR:   static checks (offline, mocked dependencies) + `terragrunt run --all plan` per env, summary as PR comment.
+# main: `terragrunt run --all apply` per env behind GitHub Environment approval (dev, then prod).
+#       Apply re-plans each unit in dependency order with real outputs (mock_outputs are not allowed for apply)
+#       and refuses to start if a stateful resource would be destroyed/replaced.
+#
+# Required GitHub configuration (no secrets: Azure auth is OIDC federated credentials):
+#   Repository variables: AZURE_TENANT_ID, DATABRICKS_ACCOUNT_ID,
+#                         TFSTATE_SUBSCRIPTION_ID, TFSTATE_RESOURCE_GROUP, TFSTATE_STORAGE_ACCOUNT
+#   Environments dev-plan, prod-plan (no reviewers) and dev, prod (required reviewers), each with:
+#                         AZURE_CLIENT_ID, AZURE_SUBSCRIPTION_ID, DATABRICKS_METASTORE_ID
+#   Plan identities: Reader + Storage Blob Data Contributor on the state container (plan takes the blob lease lock).
+#   Apply identities: Contributor/RBAC admin as needed.
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".tflint.hcl"
+      - ".checkov.yaml"
+      - ".github/workflows/terraform.yml"
+      - ".github/scripts/plan_summary.py"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "1.11.1"
+  TG_VERSION: "1.1.6"
+  TG_SHA256_LINUX_AMD64: "d75a80bb264758ba00dabcb17f4b507fcdab4ca90d9e41f96750df036bf69b04"
+  TFLINT_VERSION: "v0.66.0"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "0"
+  CHECKPOINT_DISABLE: "1"
+  TG_NON_INTERACTIVE: "true"
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+jobs:
+  static:
+    name: fmt / validate / lint / test
+    runs-on: ubuntu-latest
+    env:
+      PLATFORM_OFFLINE: "true"
+      ARM_SUBSCRIPTION_ID: "00000000-0000-0000-0000-000000000000"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: install terragrunt (checksum-verified)
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/terragrunt" \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64"
+          echo "${TG_SHA256_LINUX_AMD64}  $RUNNER_TEMP/terragrunt" | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/terragrunt" /usr/local/bin/terragrunt
+          terragrunt --version
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: fmt (terraform + terragrunt hcl)
+        run: make fmt-check
+
+      - name: validate (modules, bootstrap, every env offline)
+        run: make validate-all
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('.tflint.hcl') }}
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          make tflint
+
+      - name: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          config_file: .checkov.yaml
+
+      - name: tests (module tftests, Terragrunt wiring, guard hook)
+        run: make test
+
+  plan:
+    name: plan (${{ matrix.env }})
+    if: github.event_name == 'pull_request'
+    needs: static
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.env }}-plan
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    concurrency:
+      group: tg-${{ matrix.env }}-plan-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      DATABRICKS_ACCOUNT_ID: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+      DATABRICKS_METASTORE_ID: ${{ vars.DATABRICKS_METASTORE_ID }}
+      TFSTATE_SUBSCRIPTION_ID: ${{ vars.TFSTATE_SUBSCRIPTION_ID }}
+      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      TG_DIR: infra/deployment/${{ matrix.env }}
+      # Committed .terraform.lock.hcl per unit (`make lock`) is the source of truth.
+      TF_CLI_ARGS_init: "-lockfile=readonly"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: install terragrunt (checksum-verified)
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/terragrunt" \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64"
+          echo "${TG_SHA256_LINUX_AMD64}  $RUNNER_TEMP/terragrunt" | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/terragrunt" /usr/local/bin/terragrunt
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: terragrunt run --all plan
+        run: |
+          terragrunt run --all --working-dir "$TG_DIR" \
+            --out-dir "$RUNNER_TEMP/plans" --json-out-dir "$RUNNER_TEMP/json" \
+            -- plan -lock-timeout=5m -input=false -no-color
+
+      - name: summarise plan
+        run: |
+          python3 .github/scripts/plan_summary.py "$RUNNER_TEMP/json" --env "${{ matrix.env }}" \
+            > "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: checkov (plan JSON)
+        run: |
+          pipx run --spec "checkov==3.3.20" checkov --config-file .checkov.yaml \
+            --framework terraform_plan -d "$RUNNER_TEMP/json" --repo-root-for-plan-enrichment .
+
+      - name: comment plan on PR
+        uses: actions/github-script@v8
+        env:
+          PLAN_ENV: ${{ matrix.env }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = `<!-- tg-plan:${process.env.PLAN_ENV} -->`;
+            const body = `${marker}\n${fs.readFileSync(`${process.env.RUNNER_TEMP}/summary.md`, 'utf8')}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  apply:
+    name: apply (${{ matrix.env }})
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: static
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.env }}
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: tg-${{ matrix.env }}-apply
+      cancel-in-progress: false
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        env: [dev, prod]
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      DATABRICKS_ACCOUNT_ID: ${{ vars.DATABRICKS_ACCOUNT_ID }}
+      DATABRICKS_METASTORE_ID: ${{ vars.DATABRICKS_METASTORE_ID }}
+      TFSTATE_SUBSCRIPTION_ID: ${{ vars.TFSTATE_SUBSCRIPTION_ID }}
+      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      TG_DIR: infra/deployment/${{ matrix.env }}
+      TF_CLI_ARGS_init: "-lockfile=readonly"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: install terragrunt (checksum-verified)
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/terragrunt" \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64"
+          echo "${TG_SHA256_LINUX_AMD64}  $RUNNER_TEMP/terragrunt" | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/terragrunt" /usr/local/bin/terragrunt
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: pre-apply plan + stateful destroy gate
+        run: |
+          terragrunt run --all --working-dir "$TG_DIR" --json-out-dir "$RUNNER_TEMP/json" \
+            -- plan -lock-timeout=5m -input=false -no-color
+          python3 .github/scripts/plan_summary.py "$RUNNER_TEMP/json" --env "${{ matrix.env }}" \
+            --fail-on-stateful >> "$GITHUB_STEP_SUMMARY"
+
+      # `run --all apply` auto-approves; the GitHub Environment reviewers are the approval gate.
+      - name: terragrunt run --all apply
+        run: terragrunt run --all --working-dir "$TG_DIR" -- apply -lock-timeout=5m -input=false -no-color

@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars (gitignored for bootstrap) and adjust.
+resource_group_name  = "rg-tfstate-plat-weu"
+storage_account_name = "stplattfstateweu01"
+location             = "westeurope"
+replication_type     = "ZRS"
+
+# Operator egress IPs allowed through the storage firewall.
+allowed_ip_ranges = []
+
+# Object IDs (not secrets) of the CI federated identities.
+state_writer_principals = {
+  # ci_apply = { principal_id = "<object-id-of-gh-apply-identity>" }
+}
+state_reader_principals = {
+  # ci_plan = { principal_id = "<object-id-of-gh-plan-identity>", principal_type = "ServicePrincipal" }
+}

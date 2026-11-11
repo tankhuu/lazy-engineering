@@ -1,0 +1,22 @@
+{
+  "recommendations": [
+    "anthropic.claude-code",
+    "hashicorp.terraform",
+    "hashicorp.hcl",
+    "ms-azuretools.vscode-azureterraform",
+    "ms-azuretools.vscode-azureresourcegroups",
+    "ms-azuretools.vscode-azurestorage",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "ms-kubernetes-tools.vscode-aks-tools",
+    "databricks.databricks",
+    "bridgecrew.checkov",
+    "redhat.vscode-yaml",
+    "github.vscode-github-actions",
+    "timonwong.shellcheck",
+    "ms-python.python",
+    "editorconfig.editorconfig"
+  ],
+  "unwantedRecommendations": [
+    "4ops.terraform"
+  ]
+}

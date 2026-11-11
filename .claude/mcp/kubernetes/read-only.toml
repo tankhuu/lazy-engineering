@@ -1,0 +1,3 @@
+# kubernetes-mcp-server drop-in: inspection only. Mutations go through GitOps/Terraform.
+read_only = true
+disable_destructive = true

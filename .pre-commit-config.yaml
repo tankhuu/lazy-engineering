@@ -1,0 +1,69 @@
+default_install_hook_types: [pre-commit]
+exclude: ^\.claude/(rules/ecc|scripts|skills/(?!terraform-azure-patterns|terragrunt-azure|aks-terraform|databricks-terraform|azure-landing-zone))/
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: detect-private-key
+      - id: check-added-large-files
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.4
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+          - --tf-init-args=-backend=false
+      - id: terraform_tflint
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+      - id: terraform_docs
+        files: ^infra/modules/
+        args:
+          - --hook-config=--path-to-file=README.md
+          - --hook-config=--add-to-existing-file=true
+          - --args=--config=.terraform-docs.yml
+      - id: terraform_checkov
+        args:
+          - --args=--config-file __GIT_WORKING_DIR__/.checkov.yaml
+
+  # Terragrunt (infra/deployment, ri-iac ADR-005 layout). Offline: dependencies use mock_outputs.
+  - repo: local
+    hooks:
+      - id: terragrunt-hcl-fmt
+        name: terragrunt hcl fmt --check
+        entry: terragrunt hcl fmt --check --diff --working-dir infra/deployment
+        language: system
+        files: ^infra/deployment/.*\.hcl$
+        pass_filenames: false
+      - id: terragrunt-validate-inputs
+        name: terragrunt hcl validate --inputs
+        entry: env PLATFORM_OFFLINE=true terragrunt hcl validate --inputs --non-interactive --log-level error --working-dir infra/deployment
+        language: system
+        files: ^infra/(deployment/.*\.hcl|modules/.*\.tf)$
+        pass_filenames: false
+      - id: terragrunt-wiring
+        name: terragrunt wiring checks (render_check.py)
+        entry: python3 infra/deployment/tests/render_check.py
+        language: system
+        files: ^infra/deployment/
+        pass_filenames: false
+      - id: guard-bash-cases
+        name: guard-bash.py regression cases
+        entry: python3 .claude/hooks-platform/test_guard_bash.py
+        language: system
+        files: ^\.claude/hooks-platform/
+        pass_filenames: false

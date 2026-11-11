@@ -218,3 +218,29 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Terraform / Terragrunt
+# Keep unit + bootstrap .terraform.lock.hcl tracked so provider checksums are pinned; modules don't lock.
+.terraform/
+.terragrunt-cache/
+.terragrunt-stack/
+.plans/
+*_gen.tf
+infra/modules/**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+tfplan.json
+drift.json
+crash.log
+crash.*.log
+*.auto.tfvars
+*.auto.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/bootstrap/terraform.tfvars
+.terraformrc
+terraform.rc

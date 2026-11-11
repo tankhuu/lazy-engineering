@@ -1,0 +1,100 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "env",
+      "type": "pickString",
+      "description": "Environment",
+      "options": ["dev", "prod"],
+      "default": "dev"
+    },
+    {
+      "id": "unit",
+      "type": "pickString",
+      "description": "Terragrunt unit (empty = all units)",
+      "options": ["", "resource-groups", "network", "log-analytics", "key-vault", "acr", "aks", "databricks", "databricks-uc"],
+      "default": ""
+    }
+  ],
+  "tasks": [
+    {
+      "label": "ecc: sync (install ECC + platform pack)",
+      "type": "shell",
+      "command": "make ecc-sync",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: fmt (terraform + terragrunt hcl)",
+      "type": "shell",
+      "command": "make fmt",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: validate (env, offline)",
+      "type": "shell",
+      "command": "make validate ENV=${input:env}",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: validate (all, offline)",
+      "type": "shell",
+      "command": "make validate-all",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: lint (fmt-check + tflint + checkov)",
+      "type": "shell",
+      "command": "make lint",
+      "group": "build",
+      "problemMatcher": {
+        "owner": "tflint",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(Error|Warning|Notice)\\s+-\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "tg: test (modules + wiring + hooks)",
+      "type": "shell",
+      "command": "make test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: graph (env)",
+      "type": "shell",
+      "command": "make graph ENV=${input:env}",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: plan (env / unit)",
+      "type": "shell",
+      "command": "make plan ENV=${input:env} UNIT=${input:unit}",
+      "problemMatcher": []
+    },
+    {
+      "label": "tg: drift (env)",
+      "type": "shell",
+      "command": "make drift ENV=${input:env}",
+      "problemMatcher": []
+    },
+    {
+      "label": "tf: docs",
+      "type": "shell",
+      "command": "make docs",
+      "problemMatcher": []
+    },
+    {
+      "label": "pre-commit: run all",
+      "type": "shell",
+      "command": "pre-commit run --all-files",
+      "problemMatcher": []
+    }
+  ]
+}

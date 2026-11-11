@@ -1,0 +1,34 @@
+# Read by `make checkov`, pre-commit (checkov hook) and .github/workflows/terraform.yml.
+# Scans the modules and bootstrap HCL. Per-env values live in infra/deployment/<env>/env.hcl,
+# which checkov cannot evaluate; CI additionally scans the per-unit plan JSON (`make checkov-plan`).
+# Every skip needs a reason; prefer fixing the code over adding a skip.
+framework:
+  - terraform
+directory:
+  - infra/modules
+  - infra/bootstrap
+skip-path:
+  - \.terraform
+  - \.terragrunt-cache
+  - tests
+download-external-modules: false
+compact: true
+quiet: true
+soft-fail: false
+skip-check:
+  # Variable-driven settings checkov cannot resolve (values come from typed optional() defaults
+  # or env.hcl); the module tests and infra/deployment/tests/render_check.py assert the secure value.
+  - CKV_AZURE_168 # AKS max_pods: system/user pools default to 110
+  - CKV_AZURE_206 # storage replication: ZRS minimum, enforced by variable validation
+  - CKV_AZURE_233 # ACR zone redundancy: zone_redundancy_enabled defaults to true
+  - CKV_AZURE_59  # storage public access: "Disabled" whenever private endpoints are enabled;
+  #                 bootstrap state keeps a firewalled endpoint for GitHub-hosted runners
+  # Per-environment choices: dev trades these for cost/reachability, prod/env.hcl sets them.
+  - CKV_AZURE_170 # AKS paid SKU: dev runs Free, prod Standard
+  - CKV_AZURE_158 # Databricks front-end private link: dev keeps public UI, prod is private-only
+  # Not adopted (yet) by design; revisit with the security reviewer.
+  - CKV_AZURE_117 # AKS disk encryption set (CMK): platform-managed keys until a CMK Key Vault exists
+  - CKV_AZURE_227 # AKS encryption at host: needs the EncryptionAtHost subscription feature; enable via host_encryption_enabled
+  - CKV_AZURE_164 # ACR content trust: deprecated by Microsoft; sign with Notation + Ratify instead
+  - CKV_AZURE_166 # ACR quarantine: needs a scanner that releases images; Defender for Containers scans instead
+  - CKV_AZURE_33  # Queue service logging: no queues are used on these accounts

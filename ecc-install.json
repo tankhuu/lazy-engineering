@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "target": "claude-project",
+  "profile": "core",
+  "include": [
+    "capability:devops",
+    "capability:security"
+  ],
+  "options": {
+    "enableHooks": true
+  }
+}

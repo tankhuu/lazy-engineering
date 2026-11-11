@@ -1,0 +1,76 @@
+{
+  "files.associations": {
+    "*.tfvars": "terraform-vars",
+    "*.tfvars.example": "terraform-vars",
+    "*.tftest.hcl": "terraform",
+    ".tflint.hcl": "terraform",
+    "terragrunt.hcl": "hcl",
+    "**/infra/deployment/**/*.hcl": "hcl"
+  },
+  "files.exclude": {
+    "**/.terraform": true,
+    "**/.terragrunt-cache": true
+  },
+  "search.exclude": {
+    "**/.terraform": true,
+    "**/.terragrunt-cache": true,
+    "**/*.tfstate*": true,
+    ".plans": true,
+    ".claude/rules/ecc": true,
+    ".claude/scripts": true
+  },
+  "files.watcherExclude": {
+    "**/.terraform/**": true,
+    "**/.terragrunt-cache/**": true,
+    ".plans/**": true
+  },
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file",
+    "editor.tabSize": 2
+  },
+  "[terraform-vars]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "file",
+    "editor.tabSize": 2
+  },
+  "terraform.languageServer.enable": true,
+  "terraform.validation.enableEnhancedValidation": true,
+  "terraform.experimentalFeatures.validateOnSave": true,
+  "terraform.experimentalFeatures.prefillRequiredFields": true,
+  "terraform.codelens.referenceCount": true,
+  "terraform.languageServer.terraform.timeout": "60s",
+  "terraform.languageServer.indexing.ignorePaths": [".claude", "infra/deployment"],
+  "[hcl]": {
+    "editor.tabSize": 2
+  },
+
+  "azureTerraform.terminal": "integrated",
+  "azureTerraform.checkTerraformCmd": true,
+
+  "checkov.useBridgecrewIntegration": false,
+  "checkov.skipFrameworks": "secrets",
+
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml",
+    "https://json.schemastore.org/pre-commit-config.json": ".pre-commit-config.yaml"
+  },
+
+  "claudeCode.preferredLocation": "panel",
+
+  "terminal.integrated.env.osx": {
+    "ARM_USE_CLI": "true",
+    "TF_PLUGIN_CACHE_DIR": "${env:HOME}/.terraform.d/plugin-cache",
+    "TG_NON_INTERACTIVE": "true"
+  },
+  "terminal.integrated.env.linux": {
+    "ARM_USE_CLI": "true",
+    "TF_PLUGIN_CACHE_DIR": "${env:HOME}/.terraform.d/plugin-cache",
+    "TG_NON_INTERACTIVE": "true"
+  }
+}
